@@ -1,0 +1,23 @@
+[
+    {
+        "Last Watering": 1434605435.3794818,
+        "Filename": "Images/Zebra_Plant.png",
+        "Name": "Zebra Plant",
+        "Info": "This is a long \n multiline String.\n See",
+        "Watering Time (s)": 35000
+    },
+    {
+        "Last Watering": 1434605783.659605,
+        "Filename": "Images/Dracaena.png",
+        "Name": "Dracaena",
+        "Info": "This is a long \n multiline String.\n See",
+        "Watering Time (s)": 120
+    },
+    {
+        "Last Watering": 1434605782.403702,
+        "Filename": "Images/Gerber.png",
+        "Name": "Gerber Daisy",
+        "Info": "This is a long \n multiline String.\n See",
+        "Watering Time (s)": 60
+    }
+]
