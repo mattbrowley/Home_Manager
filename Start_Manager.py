@@ -7,11 +7,11 @@ Created on Thu Jun 11 13:38:01 2015
 import sys
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
-import Home_Node_Ui
+import Home_Manager_Ui
 
 
 def main():
-    window = Home_Node_Ui.mainWindow()
+    window = Home_Manager_Ui.mainWindow()
     window.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
     window.showMaximized()
     return window

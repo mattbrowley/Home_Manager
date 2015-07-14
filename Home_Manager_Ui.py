@@ -17,8 +17,8 @@ class mainWindow(QtGui.QMainWindow):
 
     def __init__(self, parent=None):
         QtGui.QMainWindow.__init__(self, parent)
-        self.setFont(button_font)
-        self.setWindowTitle("Home Node Controller")
+        self.setFont(big_font)
+        self.setWindowTitle("Home Manager")
         self.frames = QtGui.QStackedWidget(self)
         self.frames.addWidget(homeFrame(self))
         self.frames.addWidget(plantsFrame(self))
@@ -53,8 +53,7 @@ class homeFrame(QtGui.QWidget):
         self.name_label.setText("Rowley Family")
         self.name_label.setAlignment(QtCore.Qt.AlignCenter)
         self.title_label = QtGui.QLabel(self)
-        self.title_label.setFont(QtGui.QFont("Brill", pointSize=40))
-        self.title_label.setText("Home Node Controller")
+        self.title_label.setText("Home Manager")
         self.title_label.setAlignment(QtCore.Qt.AlignCenter)
         self.name_layout.addWidget(self.name_label)
         self.name_layout.addWidget(self.title_label)
@@ -69,6 +68,8 @@ class homeFrame(QtGui.QWidget):
         self.plants_button.setText("Plants")
         self.vertical_layout.addWidget(self.plants_button)
         self.vertical_layout.addItem(verticalSpacer())
+        self.notification_widget = notificationWidget(self)
+        self.vertical_layout.addWidget(self.notification_widget)
 
 
 class verticalSpacer(QtGui.QSpacerItem):
@@ -105,7 +106,8 @@ class homeButton(QtGui.QPushButton):
 
     def __init__(self, parent=None):
         QtGui.QPushButton.__init__(self, parent)
-        self.home_icon = QtGui.QIcon(QtGui.QPixmap("Images/home.png"))
+        filepath = os.path.join(images_directory, "home.png")
+        self.home_icon = QtGui.QIcon(QtGui.QPixmap(filepath))
         self.setIcon(self.home_icon)
         self.clicked.connect(self.goHome)
         self.target_frame = "home"
@@ -134,10 +136,11 @@ class plantsFrame(QtGui.QWidget):
 
     def __init__(self, parent=None):
         QtGui.QWidget.__init__(self, parent)
-        with open('plants.json') as plant_file:
+        filepath = os.path.join(data_directory, 'plants.json')
+        with open(filepath) as plant_file:
             self.plants = json.load(plant_file)
         self.layout = QtGui.QVBoxLayout(self)
-        self.plants_layout = QtGui.QHBoxLayout(self)
+        self.plants_layout = QtGui.QHBoxLayout()
         for i, plant in enumerate(self.plants):
             plant_widget = plantWidget(i, self.plants, self)
             self.plants_layout.addWidget(plant_widget)
@@ -164,26 +167,38 @@ class plantWidget(QtGui.QWidget):
         self.layout = QtGui.QVBoxLayout(self)
         self.name_label = QtGui.QLabel(self)
         self.name_label.setText(self.my_values["Name"])
+        self.name_label.setAlignment(QtCore.Qt.AlignCenter)
         self.layout.addWidget(self.name_label)
-        self.button_layout = QtGui.QHBoxLayout(self)
+        self.button_layout = QtGui.QHBoxLayout()
         self.button_layout.addItem(horizontalSpacer())
         self.picture = QtGui.QLabel(self)
-        self.pixmap = (QtGui.QPixmap(self.my_values["Filename"]).
+        filepath = os.path.join(images_directory, self.my_values["Filename"])
+        self.pixmap = (QtGui.QPixmap(filepath).
                        scaled(225, 225, QtCore.Qt.KeepAspectRatio))
         self.picture.setPixmap(self.pixmap)
         self.button_layout.addWidget(self.picture)
         self.button = QtGui.QPushButton(self)
-        self.watering_icon = QtGui.QIcon(QtGui.QPixmap("Images/watering.png"))
+        filepath = os.path.join(images_directory, "watering.png")
+        self.watering_icon = QtGui.QIcon(QtGui.QPixmap(filepath))
+        self.button.setFixedSize(QtCore.QSize(35, 35))
         self.button.setIcon(self.watering_icon)
         self.button_layout.addWidget(self.button)
         self.progress = QtGui.QProgressBar(self)
         self.progress.setRange(0, self.my_values["Watering Time (s)"])
         self.progress.setOrientation(QtCore.Qt.Orientation(2))
+        self.progress.setTextVisible(False)
+        self.progress.setMaximumWidth(15)
+        self.progress.setStyle(QtGui.QStyleFactory.create("plastique"))
+        self.progress_palette = QtGui.QPalette()
+        self.progress_palette.setColor(QtGui.QPalette.Highlight,
+                                       QtGui.QColor(QtCore.Qt.darkBlue))
+        self.progress.setPalette(self.progress_palette)
         self.button_layout.addWidget(self.progress)
         self.button_layout.addItem(horizontalSpacer())
         self.layout.addLayout(self.button_layout)
         self.layout.addWidget(horizontalLine(self))
         self.info = QtGui.QLabel(self)
+        self.info.setFont(med_font)
         self.info.setText(self.my_values["Info"])
         self.layout.addWidget(self.info)
         self.layout.addItem(verticalSpacer())
@@ -197,12 +212,11 @@ class plantWidget(QtGui.QWidget):
     def waterMe(self):
         current_time = time.time()
         self.plants[self.plant_index]["Last Watering"] = current_time
-        with open('plants.json', 'w') as f:
+        filepath = os.path.join(data_directory, 'plants.json')
+        with open(filepath, 'w') as f:
             json.dump(self.plants, f, indent=4, ensure_ascii=False)
         self.setProgress()
-        if self.notification_sent:
-            notification_mutex.remove(self.my_values["Name"])
-            self.notification_sent = False
+        notification_mutex.remove(self.my_values["Name"])
 
     def setProgress(self):
         current_time = time.time()
@@ -211,8 +225,20 @@ class plantWidget(QtGui.QWidget):
         watering_time = self.my_values["Watering Time (s)"]
         self.progress.setValue(watering_time - elapsed_time)
         if elapsed_time > watering_time:
-            print("TODO: Send a notification")
-            self.notification_sent = True
+            self.progress_palette.setColor(QtGui.QPalette.Base,
+                                           QtGui.QColor(QtCore.Qt.red))
+            self.progress.setPalette(self.progress_palette)
+            values = (self.my_values["Name"], self.my_values["Filename"],
+                      'Water Me!')
+            notification_mutex.add(values[0], values[1], values[2])
+        elif elapsed_time > watering_time * 0.75:
+            self.progress_palette.setColor(QtGui.QPalette.Base,
+                                           QtGui.QColor(QtCore.Qt.yellow))
+            self.progress.setPalette(self.progress_palette)
+        else:
+            self.progress_palette.setColor(QtGui.QPalette.Base,
+                                           QtGui.QColor(QtCore.Qt.white))
+            self.progress.setPalette(self.progress_palette)
 
 
 class clockWidget(QtGui.QWidget):
@@ -241,7 +267,59 @@ class clockWidget(QtGui.QWidget):
         self.date_label.setText(time.strftime("%A %B %d, %Y"))
 
 
+class notificationWidget(QtGui.QWidget):
+
+    def __init__(self, parent=None):
+        QtGui.QWidget.__init__(self, parent)
+        signals.notification_update.connect(self.updateNotifications)
+        self.layout = QtGui.QHBoxLayout(self)
+        self.pic_labels = [None] * 5
+        self.note_labels = [None] * 5
+        for i in range(5):
+            pic = QtGui.QLabel(self)
+            self.pic_labels[i] = pic
+            note = QtGui.QLabel(self)
+            note.setFont(med_font)
+            self.note_labels[i] = note
+            layout = QtGui.QVBoxLayout()
+            layout.addWidget(pic)
+            layout.addWidget(note)
+            self.layout.addLayout(layout)
+            self.layout.addItem(horizontalSpacer())
+        self.more_layout = QtGui.QVBoxLayout()
+        self.more_layout.addItem(verticalSpacer())
+        self.more_label = QtGui.QLabel(self)
+        filepath = os.path.join(images_directory, 'More.png')
+        self.more_pixmap = (QtGui.QPixmap(filepath))
+        self.more_label.setPixmap(self.more_pixmap)
+        self.more_layout.addWidget(self.more_label)
+        self.more_layout.addItem(verticalSpacer())
+        self.layout.addItem(horizontalSpacer())
+        self.layout.addLayout(self.more_layout)
+        self.updateNotifications()
+
+    def updateNotifications(self):
+        notifications = notification_mutex.read()
+        self.more_label.setVisible(False)
+        for i in range(5):
+            self.pic_labels[i].setVisible(False)
+            self.note_labels[i].setVisible(False)
+        for i, name in enumerate(notifications):
+            if i <= 4:
+                pic, text = notifications[name]
+                filepath = os.path.join(images_directory, pic)
+                pixmap = (QtGui.QPixmap(filepath).
+                          scaled(175, 175, QtCore.Qt.KeepAspectRatio))
+                self.pic_labels[i].setPixmap(pixmap)
+                self.note_labels[i].setText(text)
+                self.pic_labels[i].setVisible(True)
+                self.note_labels[i].setVisible(True)
+            elif i == 5:
+                self.more_label.setVisble(True)
+
+
 class notificationMutex(QtCore.QMutex):
+
     def __init__(self):
         QtCore.QMutex.__init__(self)
         self.notifications = {}
@@ -249,16 +327,18 @@ class notificationMutex(QtCore.QMutex):
     def read(self):
         return self.notifications
 
-    def add(self, new_name, new_value):
+    def add(self, new_name, new_pic, new_text):
         self.lock()
-        self.notifications[new_name] = new_value
+        self.notifications[new_name] = (new_pic, new_text)
         self.unlock()
+        signals.notification_update.emit()
 
     def remove(self, name):
         self.lock()
         if name in self.notifications:
             del self.notifications[name]
         self.unlock()
+        signals.notification_update.emit()
 
 
 class frameMutex(QtCore.QMutex):
@@ -276,11 +356,19 @@ class frameMutex(QtCore.QMutex):
 
 
 class Signals(QtCore.QObject):
+    '''
+    A QObject that holds all the pyqtSignals
+    '''
     frame_change = QtCore.pyqtSignal()
     notification_update = QtCore.pyqtSignal()
 
 # A few global variables
+cwd = os.getcwd()
+images_directory = os.path.join(cwd, "Images")
+data_directory = os.path.join(cwd, "Data")
 signals = Signals()
 frame_mutex = frameMutex()
 notification_mutex = notificationMutex()
-button_font = QtGui.QFont("Brill", pointSize=40)
+big_font = QtGui.QFont("Brill", pointSize=40)
+med_font = QtGui.QFont("Brill", pointSize=28)
+small_font = QtGui.QFont("Brill", pointSize=20)
